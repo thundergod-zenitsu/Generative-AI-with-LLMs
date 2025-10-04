@@ -339,17 +339,42 @@ def extract_pdf_sections_no_footnotes(pdf_path, size_delta_threshold=1.0, dedupe
     return sections
 
 #=======================================================================================================================================
-
 import re
 import statistics
 import fitz  # PyMuPDF
 
 NUM_RE_PDF = re.compile(
-    r'^\s*(?P<num>(?:\d+\.)+\d*|\d+|chapter\s+\d+)\b[.\-:)]*\s*(?P<title>.*)',
+    r'^\s*(?P<num>(?:\d+\.)+\d*|\d+)\b[.\-:)]*\s*(?P<title>.*)',
     re.I
 )
 
-def extract_pdf_sections_strict(pdf_path, size_delta_threshold=1.0, dedupe_threshold_ratio=0.6):
+def parse_numbering(num_str):
+    """Convert '2.3.1' -> [2, 3, 1] as integers"""
+    return [int(x) for x in num_str.strip('.').split('.') if x.isdigit()]
+
+def is_next_section(prev_nums, curr_nums):
+    """
+    Decide if curr_nums is a valid next section after prev_nums.
+    Examples:
+    prev [2] -> curr [3] ✅ new main section
+    prev [2,1] -> curr [2,2] ✅ next subsection
+    prev [2,1] -> curr [2,1,1] ✅ nested subsection
+    prev [2,2] -> curr [3] ✅ new chapter
+    """
+    if not prev_nums:
+        return True
+    # Same depth → should increment last number
+    if len(prev_nums) == len(curr_nums):
+        return curr_nums[:-1] == prev_nums[:-1] and curr_nums[-1] == prev_nums[-1] + 1
+    # One deeper → child section
+    if len(curr_nums) == len(prev_nums) + 1:
+        return curr_nums[:-1] == prev_nums and curr_nums[-1] == 1
+    # One higher → closing subsection, allow reset
+    if len(curr_nums) < len(prev_nums):
+        return curr_nums[-1] == prev_nums[len(curr_nums)-1] + 1 or curr_nums[-1] == 1
+    return False
+
+def extract_pdf_sections_no_footnotes(pdf_path, size_delta_threshold=1.0, dedupe_threshold_ratio=0.6):
     doc = fitz.open(pdf_path)
     all_lines = []
 
@@ -370,6 +395,7 @@ def extract_pdf_sections_strict(pdf_path, size_delta_threshold=1.0, dedupe_thres
                 sizes = [span.get("size", 0) for span in line.get("spans", []) if span.get("size")]
                 max_size = max(sizes) if sizes else 0
 
+                # average y position of line
                 y_positions = [span.get("bbox")[1] for span in line.get("spans", []) if "bbox" in span]
                 avg_y = sum(y_positions) / len(y_positions) if y_positions else 0
 
@@ -397,84 +423,44 @@ def extract_pdf_sections_strict(pdf_path, size_delta_threshold=1.0, dedupe_thres
             continue
         body_lines.append(l)
 
-    # Candidate headings
-    candidates = []
-    for l in body_lines:
-        m = NUM_RE_PDF.match(l["text"])
-        if not m:
-            # non-numbered heading → check font size
-            if l["size"] >= median_size + size_delta_threshold:
-                candidates.append(l)
-            continue
-
-        # If it looks like a numbered heading, apply extra rules
-        title = m.group("title").strip()
-
-        # Rule 1: must be visually bigger OR bold (approx. size > median)
-        if l["size"] < median_size + 0.5:
-            continue
-
-        # Rule 2: must be reasonably short (avoid sentences)
-        if len(title.split()) > 12:
-            continue
-
-        # Rule 3: title usually starts with uppercase
-        if title and title[0].islower():
-            continue
-
-        candidates.append(l)
-
-    # Deduplicate
-    text_counts = {}
-    for c in candidates:
-        key = c["text"].lower()
-        text_counts[key] = text_counts.get(key, 0) + 1
-    num_pages = len(doc)
-    filtered = [c for c in candidates if text_counts[c["text"].lower()] <= dedupe_threshold_ratio * num_pages]
-
-    # Map font sizes to heading levels
-    unique_sizes = sorted({c["size"] for c in filtered}, reverse=True)
-    size_to_level = {s: i + 1 for i, s in enumerate(unique_sizes)}
-
-    # Build sections
     sections = []
-    seen = set()
-    for idx, c in enumerate(filtered):
-        key = (c["text"], c["page"])
-        if key in seen:
-            continue
-        seen.add(key)
+    current_section = None
+    prev_nums = None
 
-        # Detect numbering depth
-        m = NUM_RE_PDF.match(c["text"])
-        num_level = None
+    for i, l in enumerate(body_lines):
+        m = NUM_RE_PDF.match(l["text"])
+        is_heading = False
+        curr_nums = None
+
         if m:
-            num = m.group("num")
-            if '.' in num:
-                num_level = len(num.split('.'))
-            else:
-                num_level = 1
+            curr_nums = parse_numbering(m.group("num"))
+            # Validate section numbering sequence
+            if prev_nums is None or is_next_section(prev_nums, curr_nums):
+                is_heading = True
+        elif l["size"] >= median_size + size_delta_threshold:
+            # Large font non-numbered heading
+            is_heading = True
 
-        level = size_to_level.get(c["size"], 2)
-        if num_level:
-            level = min(level, num_level)
+        if is_heading:
+            # Close previous section
+            if current_section:
+                sections.append(current_section)
 
-        # Collect section content
-        content_lines = []
-        start_idx = body_lines.index(c)
-        end_idx = len(body_lines)
-        if idx + 1 < len(filtered):
-            end_idx = body_lines.index(filtered[idx + 1])
+            current_section = {
+                "title": l["text"],
+                "page": l["page"],
+                "content": "",
+                "numbering": curr_nums or []
+            }
+            prev_nums = curr_nums
+        else:
+            if current_section:
+                current_section["content"] += " " + l["text"]
 
-        for l in body_lines[start_idx + 1:end_idx]:
-            content_lines.append(l["text"])
-
-        sections.append({
-            "title": c["text"],  # keep numbering
-            "level": int(level),
-            "page": c["page"],
-            "content": " ".join(content_lines).strip()
-        })
+    # Append last section
+    if current_section:
+        sections.append(current_section)
 
     return sections
+
 #=======================================================================================================================================
