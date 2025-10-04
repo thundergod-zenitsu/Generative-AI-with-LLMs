@@ -15,3 +15,4 @@ venv/
 /Cerebras/.env
 /venv1/
 /experiments/.env
+/experiments/pageindex_sample.ipynb
