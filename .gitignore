@@ -3,3 +3,14 @@ Data Files/
 distilbert-base-uncased-finetuned-on-emotion-dataset
 venv/
 .vscode/
+/Oreily-NLP with transformers/distilbert-base-uncased-finetuned-on-emotion-dataset/
+/Oreily-NLP with transformers/Data Files/
+/Oreily-NLP with transformers/local/
+/.chainlit/
+/.idea/
+/chainlit.md
+/uploaded_pdfs/
+/Cerebras/.venv/
+/Cerebras/.vscode/
+/Cerebras/.env
+/venv1/

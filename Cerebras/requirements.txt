@@ -1,0 +1,5 @@
+python-dotenv
+pandas
+numpy
+openai
+cerebras-cloud-sdk
