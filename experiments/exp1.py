@@ -464,3 +464,120 @@ def extract_pdf_sections_no_footnotes(pdf_path, size_delta_threshold=1.0, dedupe
     return sections
 
 #=======================================================================================================================================
+
+
+import re
+import statistics
+import fitz  # PyMuPDF
+
+NUM_RE_PDF = re.compile(
+    r'^\s*(?P<num>(?:\d+\.)+\d*|\d+)\b[.\-:)]*\s*(?P<title>.*)',
+    re.I
+)
+
+def parse_numbering(num_str):
+    """Convert '2.3.1' -> [2, 3, 1] as integers"""
+    return [int(x) for x in num_str.strip('.').split('.') if x.isdigit()]
+
+def is_next_section(prev_nums, curr_nums):
+    """Check if curr_nums is a valid next section after prev_nums"""
+    if not prev_nums:
+        return True
+    # Same depth → should increment last number
+    if len(prev_nums) == len(curr_nums):
+        return curr_nums[:-1] == prev_nums[:-1] and curr_nums[-1] == prev_nums[-1] + 1
+    # One deeper → child section
+    if len(curr_nums) == len(prev_nums) + 1:
+        return curr_nums[:-1] == prev_nums and curr_nums[-1] == 1
+    # One higher → closing subsection, allow reset
+    if len(curr_nums) < len(prev_nums):
+        return curr_nums[-1] == prev_nums[len(curr_nums)-1] + 1 or curr_nums[-1] == 1
+    return False
+
+def extract_pdf_sections_no_footnotes(pdf_path, size_delta_threshold=1.0):
+    doc = fitz.open(pdf_path)
+    all_lines = []
+
+    for page_num, page in enumerate(doc):
+        page_height = page.rect.height
+        page_dict = page.get_text("dict")
+
+        for block in page_dict.get("blocks", []):
+            for line in block.get("lines", []):
+                line_text = " ".join(
+                    span.get("text", "").strip()
+                    for span in line.get("spans", [])
+                    if span.get("text")
+                ).strip()
+                if not line_text:
+                    continue
+
+                sizes = [span.get("size", 0) for span in line.get("spans", []) if span.get("size")]
+                max_size = max(sizes) if sizes else 0
+
+                y_positions = [span.get("bbox")[1] for span in line.get("spans", []) if "bbox" in span]
+                avg_y = sum(y_positions) / len(y_positions) if y_positions else 0
+
+                all_lines.append({
+                    "text": line_text,
+                    "size": max_size,
+                    "page": page_num + 1,
+                    "y": avg_y,
+                    "page_height": page_height
+                })
+
+    if not all_lines:
+        return []
+
+    # Median size
+    sizes = [l["size"] for l in all_lines if l["size"] > 0]
+    median_size = statistics.median(sizes) if sizes else 0
+
+    # Filter out likely footnotes
+    body_lines = []
+    for l in all_lines:
+        if l["size"] < median_size - 1.5:  # much smaller font
+            continue
+        if l["y"] > 0.9 * l["page_height"]:  # bottom 10% of page
+            continue
+        body_lines.append(l)
+
+    sections = []
+    current_section = None
+    prev_nums = None
+
+    for l in body_lines:
+        m = NUM_RE_PDF.match(l["text"])
+        is_heading = False
+        curr_nums = None
+
+        if m:
+            curr_nums = parse_numbering(m.group("num"))
+            if prev_nums is None or is_next_section(prev_nums, curr_nums):
+                is_heading = True
+        elif l["size"] >= median_size + size_delta_threshold:
+            is_heading = True
+
+        if is_heading:
+            if current_section:
+                sections.append(current_section)
+
+            current_section = {
+                "title": l["text"],
+                "page": l["page"],
+                "content": "",
+                "numbering": curr_nums or [],
+                "level": len(curr_nums) if curr_nums else 1
+            }
+            prev_nums = curr_nums
+        else:
+            if current_section:
+                current_section["content"] += " " + l["text"]
+
+    if current_section:
+        sections.append(current_section)
+
+    return sections
+
+
+#=======================================================================================================================================
