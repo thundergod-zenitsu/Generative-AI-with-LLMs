@@ -14,3 +14,4 @@ venv/
 /Cerebras/.vscode/
 /Cerebras/.env
 /venv1/
+/experiments/.env
