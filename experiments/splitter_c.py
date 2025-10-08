@@ -153,57 +153,49 @@ if __name__ == "__main__":
 
 # ============================================================================================================
 
-
 import re
 from typing import List, Dict, Any
 
 def parse_document_sections(text: str, custom_heading_keywords: List[str] = None) -> List[Dict[str, Any]]:
     """
-    Parse a document into structured sections and subsections.
-    
-    Args:
-        text: Raw document text.
-        custom_heading_keywords: List of custom heading start words like ["Schedule", "Addendum", "Annexure"]
-    
-    Returns:
-        Nested list of sections with 'title', 'level', 'content', and 'subsections'.
+    Parse a document into structured sections/subsections.
+    Detects headings starting with numbered patterns (1., 1.1. etc.)
+    and also custom keywords like 'Schedule', 'Addendum', etc.
+    Ignores mid-content numeric mentions.
     """
     if custom_heading_keywords is None:
         custom_heading_keywords = []
-    
-    # Normalize text
+
+    # Preprocess
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    
+
+    numbered_heading_re = re.compile(r"^(?P<number>\d+(\.\d+)*)(?:\s*[-–—.]?\s*)(?P<title>.+)$")
+    custom_heading_re = re.compile(
+        r"^(?:" + "|".join([re.escape(k) for k in custom_heading_keywords]) + r")(\b|:)",
+        flags=re.IGNORECASE
+    )
+
     def detect_heading_level(line: str) -> int:
-        """Determine heading depth based on numbering like 1., 1.1, 1.1.1"""
-        match = re.match(r"^(\d+(?:\.\d+)*)\s", line)
+        """Return hierarchy depth (e.g. 1.1.2 -> level 3)."""
+        match = numbered_heading_re.match(line)
         if match:
-            return len(match.group(1).split('.'))
-        # Default single-level heading
-        return 1
+            return len(match.group("number").split("."))
+        return 1  # default
 
     def is_heading(line: str) -> bool:
-        """Decide if a line is likely a heading."""
-        # Numeric pattern (1., 1.1, etc.)
-        if re.match(r"^\d+(\.\d+)*\s", line):
-            return True
-        
-        # Starts with known keywords like Schedule, Addendum, Annexure, Exhibit, etc.
-        for kw in custom_heading_keywords:
-            if line.lower().startswith(kw.lower()):
+        """Robust heading detection."""
+        # Must start with number like 1., 1.1., etc.
+        if numbered_heading_re.match(line):
+            # Avoid misclassifying content like "as per clause 1.2 above"
+            # -> too long or has sentence-like structure
+            if len(line.split()) <= 15 and not line.endswith("."):
                 return True
         
-        # All caps short line (e.g., TERMS AND CONDITIONS)
-        if line.isupper() and len(line.split()) <= 10:
-            return True
-        
-        # Ends with colon
-        if line.endswith(":") and len(line.split()) <= 10:
-            return True
-        
-        # Title case short lines
-        if (len(line.split()) <= 8) and line.istitle():
-            return True
+        # Match known custom heading keywords like Schedule, Addendum, etc.
+        if custom_heading_re.match(line):
+            # Custom headings are usually short lines
+            if len(line.split()) <= 12:
+                return True
         
         return False
 
@@ -213,17 +205,21 @@ def parse_document_sections(text: str, custom_heading_keywords: List[str] = None
     for line in lines:
         if is_heading(line):
             level = detect_heading_level(line)
+            match = numbered_heading_re.match(line)
+            number = match.group("number") if match else None
+            title = match.group("title").strip() if match else line.strip()
+
             node = {
-                "title": line,
+                "number": number,
+                "title": title,
                 "level": level,
                 "content": "",
                 "subsections": []
             }
 
-            # Adjust hierarchy stack
+            # Manage hierarchy
             while stack and stack[-1]["level"] >= level:
                 stack.pop()
-
             if stack:
                 stack[-1]["subsections"].append(node)
             else:
@@ -234,18 +230,19 @@ def parse_document_sections(text: str, custom_heading_keywords: List[str] = None
             if stack:
                 stack[-1]["content"] += " " + line
             else:
-                # handle stray text before first heading
+                # handle preamble text
                 if sections and "content" in sections[-1]:
                     sections[-1]["content"] += " " + line
                 else:
                     sections.append({
+                        "number": None,
                         "title": "Preamble",
                         "level": 0,
                         "content": line,
                         "subsections": []
                     })
 
-    # Trim spaces
+    # Cleanup whitespace
     def trim_content(sections):
         for sec in sections:
             sec["content"] = sec["content"].strip()
