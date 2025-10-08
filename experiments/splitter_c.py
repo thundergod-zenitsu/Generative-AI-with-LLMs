@@ -146,3 +146,138 @@ if __name__ == "__main__":
 
     diff = highlight_differences(template_clause, merged_clause)
     print("\n🔍 Differences:\n", diff)
+
+
+
+
+
+# ============================================================================================================
+
+
+import re
+from typing import List, Dict, Any
+
+def parse_document_sections(text: str, custom_heading_keywords: List[str] = None) -> List[Dict[str, Any]]:
+    """
+    Parse a document into structured sections and subsections.
+    
+    Args:
+        text: Raw document text.
+        custom_heading_keywords: List of custom heading start words like ["Schedule", "Addendum", "Annexure"]
+    
+    Returns:
+        Nested list of sections with 'title', 'level', 'content', and 'subsections'.
+    """
+    if custom_heading_keywords is None:
+        custom_heading_keywords = []
+    
+    # Normalize text
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    
+    def detect_heading_level(line: str) -> int:
+        """Determine heading depth based on numbering like 1., 1.1, 1.1.1"""
+        match = re.match(r"^(\d+(?:\.\d+)*)\s", line)
+        if match:
+            return len(match.group(1).split('.'))
+        # Default single-level heading
+        return 1
+
+    def is_heading(line: str) -> bool:
+        """Decide if a line is likely a heading."""
+        # Numeric pattern (1., 1.1, etc.)
+        if re.match(r"^\d+(\.\d+)*\s", line):
+            return True
+        
+        # Starts with known keywords like Schedule, Addendum, Annexure, Exhibit, etc.
+        for kw in custom_heading_keywords:
+            if line.lower().startswith(kw.lower()):
+                return True
+        
+        # All caps short line (e.g., TERMS AND CONDITIONS)
+        if line.isupper() and len(line.split()) <= 10:
+            return True
+        
+        # Ends with colon
+        if line.endswith(":") and len(line.split()) <= 10:
+            return True
+        
+        # Title case short lines
+        if (len(line.split()) <= 8) and line.istitle():
+            return True
+        
+        return False
+
+    sections = []
+    stack = []
+
+    for line in lines:
+        if is_heading(line):
+            level = detect_heading_level(line)
+            node = {
+                "title": line,
+                "level": level,
+                "content": "",
+                "subsections": []
+            }
+
+            # Adjust hierarchy stack
+            while stack and stack[-1]["level"] >= level:
+                stack.pop()
+
+            if stack:
+                stack[-1]["subsections"].append(node)
+            else:
+                sections.append(node)
+            stack.append(node)
+
+        else:
+            if stack:
+                stack[-1]["content"] += " " + line
+            else:
+                # handle stray text before first heading
+                if sections and "content" in sections[-1]:
+                    sections[-1]["content"] += " " + line
+                else:
+                    sections.append({
+                        "title": "Preamble",
+                        "level": 0,
+                        "content": line,
+                        "subsections": []
+                    })
+
+    # Trim spaces
+    def trim_content(sections):
+        for sec in sections:
+            sec["content"] = sec["content"].strip()
+            trim_content(sec["subsections"])
+    trim_content(sections)
+
+    return sections
+
+
+# Example Usage
+sample_text = """
+1. Introduction
+This contract outlines the terms of engagement.
+
+1.1 Background
+The company engages the supplier for project X.
+
+Schedule A: Payment Terms
+Payments will be made quarterly.
+
+Addendum 1
+Any future modifications shall be documented here.
+"""
+
+sections = parse_document_sections(
+    sample_text,
+    custom_heading_keywords=["Schedule", "Addendum", "Annexure", "Exhibit"]
+)
+
+import json
+print(json.dumps(sections, indent=2))
+
+
+
+# ============================================================================================================
