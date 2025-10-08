@@ -152,128 +152,189 @@ if __name__ == "__main__":
 
 
 # ============================================================================================================
-
 import re
 from typing import List, Dict, Any
 
-def parse_document_sections(text: str, custom_heading_keywords: List[str] = None) -> List[Dict[str, Any]]:
+def parse_document_sections_v3(text: str, custom_heading_keywords: List[str] = None) -> List[Dict[str, Any]]:
     """
-    Parse a document into structured sections/subsections.
-    Detects headings starting with numbered patterns (1., 1.1. etc.)
-    and also custom keywords like 'Schedule', 'Addendum', etc.
-    Ignores mid-content numeric mentions.
+    Robust parser that:
+      - Treats blocks (groups of non-empty lines separated by blank lines)
+      - Detects headings only if they start the block
+      - Detects numbered headings like '1.' '2.1' etc.
+      - Detects custom headings like 'Schedule A:', 'Addendum 1'
+      - Creates placeholder parent sections if subsections appear before parents
+      - Reflows block content to fix line-wraps/hyphenation
+
+    Returns a list of section dicts:
+      { "number": "2.1" or None, "title": "Heading text", "level": int, "content": "...", "subsections": [...] }
     """
     if custom_heading_keywords is None:
         custom_heading_keywords = []
+    raw_lines = text.splitlines()
 
-    # Preprocess
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-
-    numbered_heading_re = re.compile(r"^(?P<number>\d+(\.\d+)*)(?:\s*[-–—.]?\s*)(?P<title>.+)$")
-    custom_heading_re = re.compile(
-        r"^(?:" + "|".join([re.escape(k) for k in custom_heading_keywords]) + r")(\b|:)",
-        flags=re.IGNORECASE
-    )
-
-    def detect_heading_level(line: str) -> int:
-        """Return hierarchy depth (e.g. 1.1.2 -> level 3)."""
-        match = numbered_heading_re.match(line)
-        if match:
-            return len(match.group("number").split("."))
-        return 1  # default
-
-    def is_heading(line: str) -> bool:
-        """Robust heading detection."""
-        # Must start with number like 1., 1.1., etc.
-        if numbered_heading_re.match(line):
-            # Avoid misclassifying content like "as per clause 1.2 above"
-            # -> too long or has sentence-like structure
-            if len(line.split()) <= 15 and not line.endswith("."):
-                return True
-        
-        # Match known custom heading keywords like Schedule, Addendum, etc.
-        if custom_heading_re.match(line):
-            # Custom headings are usually short lines
-            if len(line.split()) <= 12:
-                return True
-        
-        return False
-
-    sections = []
-    stack = []
-
-    for line in lines:
-        if is_heading(line):
-            level = detect_heading_level(line)
-            match = numbered_heading_re.match(line)
-            number = match.group("number") if match else None
-            title = match.group("title").strip() if match else line.strip()
-
-            node = {
-                "number": number,
-                "title": title,
-                "level": level,
-                "content": "",
-                "subsections": []
-            }
-
-            # Manage hierarchy
-            while stack and stack[-1]["level"] >= level:
-                stack.pop()
-            if stack:
-                stack[-1]["subsections"].append(node)
-            else:
-                sections.append(node)
-            stack.append(node)
-
+    # Build blocks (each block = list of original non-empty lines)
+    blocks = []
+    cur_block = []
+    for line in raw_lines:
+        if line.strip() == "":
+            if cur_block:
+                blocks.append(cur_block)
+                cur_block = []
         else:
-            if stack:
-                stack[-1]["content"] += " " + line
+            cur_block.append(line.rstrip())
+    if cur_block:
+        blocks.append(cur_block)
+
+    numbered_heading_re = re.compile(r'^(?P<number>\d+(?:\.\d+)*)(?:[.)\s:-]+)(?P<title>.*\S.*)$')
+    if custom_heading_keywords:
+        custom_heading_re = re.compile(
+            r'^(?:' + '|'.join(re.escape(k) for k in custom_heading_keywords) + r')\b[:\s-]*(?P<title>.*)$',
+            re.I
+        )
+    else:
+        custom_heading_re = None
+
+    sections: List[Dict[str, Any]] = []
+    number_to_node: Dict[str, Dict[str, Any]] = {}
+    last_node = None
+
+    def reflow_lines(lines: List[str]) -> str:
+        # Simple reflow: fix hyphenated wraps and join lowercase continuations
+        out = []
+        for line in lines:
+            s = line.strip()
+            if not out:
+                out.append(s)
             else:
-                # handle preamble text
-                if sections and "content" in sections[-1]:
-                    sections[-1]["content"] += " " + line
+                prev = out[-1]
+                if prev.endswith('-'):
+                    out[-1] = prev[:-1] + s.lstrip()
+                elif s and s[0].islower() and not prev.endswith(('.', '?', '!', ':', ';', '—', '–', '-')):
+                    out[-1] = prev + ' ' + s.lstrip()
                 else:
-                    sections.append({
-                        "number": None,
-                        "title": "Preamble",
-                        "level": 0,
-                        "content": line,
-                        "subsections": []
-                    })
+                    out.append(s)
+        return " ".join(out)
 
-    # Cleanup whitespace
-    def trim_content(sections):
-        for sec in sections:
-            sec["content"] = sec["content"].strip()
-            trim_content(sec["subsections"])
-    trim_content(sections)
+    def ensure_parent_chain(number: str):
+        parts = number.split('.')
+        for depth in range(1, len(parts)):
+            parent_num = '.'.join(parts[:depth])
+            if parent_num not in number_to_node:
+                node = {
+                    "number": parent_num,
+                    "title": None,
+                    "level": depth,
+                    "content": "",
+                    "subsections": [],
+                    "_placeholder": True
+                }
+                number_to_node[parent_num] = node
+                if depth == 1:
+                    sections.append(node)
+                else:
+                    grandparent = '.'.join(parts[:depth-1])
+                    number_to_node[grandparent]['subsections'].append(node)
 
+    for block in blocks:
+        first_line = block[0].strip()
+        m = numbered_heading_re.match(first_line)
+        cm = custom_heading_re.match(first_line) if custom_heading_re else None
+
+        # content = reflow of remaining lines of the block (if any)
+        content = ""
+        if len(block) > 1:
+            content = reflow_lines(block[1:]).strip()
+
+        if m:
+            number = m.group('number')
+            title = m.group('title').strip()
+            level = len(number.split('.'))
+            if level > 1:
+                ensure_parent_chain(number)
+            # upgrade placeholder or create new node
+            if number in number_to_node:
+                node = number_to_node[number]
+                node['title'] = title
+                node['level'] = level
+                node['_placeholder'] = False
+            else:
+                node = {
+                    "number": number,
+                    "title": title,
+                    "level": level,
+                    "content": "",
+                    "subsections": [],
+                    "_placeholder": False
+                }
+                number_to_node[number] = node
+                if level == 1:
+                    sections.append(node)
+                else:
+                    parent_num = '.'.join(number.split('.')[:level-1])
+                    number_to_node[parent_num]['subsections'].append(node)
+            if content:
+                node['content'] = (node.get('content', '') + "\n\n" + content).strip() if node.get('content') else content
+            last_node = node
+            continue
+
+        if cm:
+            # custom heading line starts the block (like 'Schedule A: Payment Terms')
+            node = {
+                "number": None,
+                "title": first_line,
+                "level": 1,
+                "content": content,
+                "subsections": [],
+                "_placeholder": False
+            }
+            sections.append(node)
+            last_node = node
+            continue
+
+        # not a heading block -> attach reflowed block to last_node (or Preamble)
+        block_text = reflow_lines(block)
+        if last_node is not None:
+            last_node['content'] = (last_node.get('content', '') + "\n\n" + block_text).strip() if last_node.get('content') else block_text
+        else:
+            # preamble at top
+            if sections and sections[0].get('title') == 'Preamble':
+                pre = sections[0]
+            else:
+                pre = {"number": None, "title": "Preamble", "level": 0, "content": "", "subsections": [], "_placeholder": False}
+                sections.insert(0, pre)
+            pre['content'] = (pre.get('content', '') + "\n\n" + block_text).strip() if pre.get('content') else block_text
+
+    # cleanup placeholders and whitespace
+    def clean(nodes):
+        for n in nodes:
+            n['content'] = n.get('content', '').strip()
+            if n.get('title') is not None:
+                n['title'] = n['title'].strip()
+            if n.get('_placeholder'):
+                n.pop('_placeholder', None)
+            clean(n['subsections'])
+    clean(sections)
     return sections
 
 
 # Example Usage
-sample_text = """
+text = """
 1. Introduction
-This contract outlines the terms of engagement.
+This Agreement is between A and B.
 
-1.1 Background
-The company engages the supplier for project X.
+2. Definitions
+In this Agreement, the following definitions apply.
+
+2.1 Effective Date
+The Effective Date means the date of signing.
+
+As per clause 2.1 above, parties agree.
 
 Schedule A: Payment Terms
-Payments will be made quarterly.
-
-Addendum 1
-Any future modifications shall be documented here.
+Payments will be quarterly.
 """
+sections = parse_document_sections_v3(text, custom_heading_keywords=['Schedule','Addendum','Annexure'])
 
-sections = parse_document_sections(
-    sample_text,
-    custom_heading_keywords=["Schedule", "Addendum", "Annexure", "Exhibit"]
-)
-
-import json
-print(json.dumps(sections, indent=2))
 
 
 
