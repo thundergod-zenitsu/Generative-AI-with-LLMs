@@ -488,3 +488,204 @@ Then open **[http://localhost:5000](http://localhost:5000)**
 → It clones, analyzes, generates docs, saves all locally, and lists it for later.
 
 ---
+
+
+
+---
+
+## 🧭 PHASE 1 — Repository Intake and Pre-Processing
+
+1. **Accept input**
+
+   * Get a GitHub URL or local folder path as input.
+   * Assign a unique project name.
+
+2. **Clone or copy the repository**
+
+   * If remote: clone the repo to a local workspace.
+   * If local: copy it to the system’s data directory.
+   * Store this repository in a persistent local folder (e.g., `data/repos/<repo_name>`).
+
+3. **Record metadata**
+
+   * Save the repo name, source URL/path, timestamp, and local directory in a persistent database (e.g., SQLite).
+   * This allows later retrieval and browsing.
+
+---
+
+## 🧠 PHASE 2 — Code Understanding and Structure Extraction
+
+4. **Identify relevant source files**
+
+   * Scan the repo for supported programming languages (e.g., `.py`, `.js`, `.java`, etc.).
+   * Ignore non-code assets (like images, binaries, or large datasets).
+
+5. **Parse the codebase**
+
+   * For each file, extract:
+
+     * Defined classes, functions, methods.
+     * Imports and dependencies between files.
+     * Docstrings and comments.
+   * Build an internal representation of the code structure — a tree or graph of entities.
+
+6. **Construct a dependency map**
+
+   * Create a directed graph where:
+
+     * Each file or module is a node.
+     * Imports or references are edges.
+   * This graph becomes the base for architecture visualization.
+
+---
+
+## 💬 PHASE 3 — Semantic Understanding (LLM Summarization)
+
+7. **Generate summaries**
+
+   * For each file or module, send a request to the LLM to summarize:
+
+     * Purpose of the file.
+     * Key classes and functions.
+     * How it interacts with other modules.
+     * Any notable algorithms or logic.
+   * Output a structured summary (e.g., sections: Purpose, Key Components, Flow).
+
+8. **Generate higher-level documentation**
+
+   * Ask the LLM to synthesize:
+
+     * An overall “Project Overview” page.
+     * An “Architecture Diagram Explanation” (in text form).
+     * Inter-module relationships and key workflows.
+
+9. **Store all summaries persistently**
+
+   * Save raw LLM outputs as Markdown or JSON files in a per-repo data folder (e.g., `data/summaries/<repo_name>`).
+   * These become the source material for rendering the wiki.
+
+---
+
+## 🔍 PHASE 4 — Knowledge Graph and Search Layer
+
+10. **Index content for retrieval**
+
+    * Generate embeddings for each file summary or section.
+    * Store them in a local vector database (e.g., FAISS or Chroma).
+    * Keep one vector index per repository.
+
+11. **Link summaries and files**
+
+    * Add cross-links between related files, classes, or functions based on dependency graph connections.
+    * Ensure the wiki can navigate seamlessly between modules.
+
+---
+
+## 🧾 PHASE 5 — Documentation Rendering
+
+12. **Convert structured data to web pages**
+
+    * For each file summary and project overview:
+
+      * Convert the Markdown or structured text into HTML templates.
+    * Organize pages hierarchically to reflect the code structure.
+    * Include:
+
+      * Sidebar navigation tree.
+      * Breadcrumbs and “see also” links.
+      * Optional code snippets or graphs.
+
+13. **Render architecture diagrams**
+
+    * Generate diagrams (e.g., with Graphviz or Mermaid syntax) showing relationships between files.
+    * Embed these in relevant pages.
+
+14. **Persist generated site**
+
+    * Save rendered HTML in a per-repo folder (e.g., `frontend/static/repos/<repo_name>`).
+    * Make it accessible for browsing later.
+
+---
+
+## 💡 PHASE 6 — Interactive Features (Optional)
+
+15. **Implement a Q&A interface**
+
+    * Allow users to ask natural-language questions about the codebase.
+    * Retrieve relevant document chunks from the vector database.
+    * Pass retrieved context + question to the LLM.
+    * Display the answer with source links.
+
+16. **Support incremental updates**
+
+    * On re-upload or code update, compare Git commits.
+    * Regenerate docs only for modified files.
+    * Update summaries, embeddings, and web pages accordingly.
+
+---
+
+## 💾 PHASE 7 — Local Persistence and User Interface
+
+17. **Maintain a repository catalog**
+
+    * Create a dashboard that lists all processed repositories.
+    * Each entry includes:
+
+      * Repo name
+      * Source URL or path
+      * Date processed
+      * Links to open the wiki or query the Q&A interface
+
+18. **Persist everything locally**
+
+    * Repository files → stored in `data/repos`
+    * Summaries and markdowns → `data/summaries`
+    * Embeddings and graphs → `data/embeddings` and `data/graphs`
+    * Metadata and user catalog → `data/metadata.sqlite`
+    * Rendered wiki → `frontend/static/repos`
+
+19. **Ensure resumability**
+
+    * On system restart, the dashboard reloads repo entries from the database.
+    * Users can open existing wikis without regenerating.
+
+---
+
+## 🧰 PHASE 8 — System Design Principles
+
+20. **Local-first philosophy**
+
+    * No cloud dependencies.
+    * LLMs and embedding models can run via local APIs or open-source models (e.g., Ollama, LlamaIndex, or LocalAI).
+
+21. **Extensibility**
+
+    * The pipeline should handle multiple languages by swapping in different parsers.
+    * The summarization layer should be modular (switch between OpenAI, Claude, or local LLM).
+
+22. **Transparency**
+
+    * Preserve raw analysis data and summaries for debugging or retraining.
+    * Allow users to export or share generated documentation as static sites.
+
+---
+
+## 🧩 Summary of Conceptual Flow
+
+| Stage         | Goal                 | Output                            |
+| ------------- | -------------------- | --------------------------------- |
+| Ingestion     | Acquire repo         | Local clone + metadata            |
+| Parsing       | Understand structure | Graph of files, imports, entities |
+| Summarization | Semantic meaning     | Markdown summaries                |
+| Indexing      | Enable retrieval     | Embedding DB                      |
+| Rendering     | Present docs         | Web pages + diagrams              |
+| Q&A           | Interactive search   | Answers from RAG                  |
+| Persistence   | Save locally         | SQLite + file storage             |
+
+---
+
+If you were instructing an LLM-agent or an autonomous coding system (like Devin or an AI engineer), the command would look like:
+
+> “Implement a local pipeline that, given a GitHub repository, clones it, analyzes its structure, generates human-readable documentation using LLM summarization, builds a searchable vector index, renders a wiki-style static site, and persists all outputs (repos, summaries, embeddings, metadata, rendered docs) locally so users can revisit previously processed projects.”
+
+---
