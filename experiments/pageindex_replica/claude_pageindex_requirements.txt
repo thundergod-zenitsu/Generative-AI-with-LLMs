@@ -1,0 +1,14 @@
+# Azure OpenAI
+openai>=1.12.0
+
+# PDF Processing
+PyMuPDF>=1.23.0
+
+# Token counting
+tiktoken>=0.5.2
+
+# Async I/O
+aiofiles>=23.2.1
+
+# Standard utilities
+python-dotenv>=1.0.0
