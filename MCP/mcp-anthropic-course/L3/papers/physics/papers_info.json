@@ -1,0 +1,85 @@
+{
+  "1910.11775v2": {
+    "title": "Physics Briefing Book",
+    "authors": [
+      "European Strategy for Particle Physics Preparatory Group"
+    ],
+    "summary": "The European Particle Physics Strategy Update (EPPSU) process takes a bottom-up approach, whereby the community is first invited to submit proposals (also called inputs) for projects that it would like to see realised in the near-term, mid-term and longer-term future. National inputs as well as inputs from National Laboratories are also an important element of the process. All these inputs are then reviewed by the Physics Preparatory Group (PPG), whose role is to organize a Symposium around the submitted ideas and to prepare a community discussion on the importance and merits of the various proposals. The results of these discussions are then concisely summarised in this Briefing Book, prepared by the Conveners, assisted by Scientific Secretaries, and with further contributions provided by the Contributors listed on the title page. This constitutes the basis for the considerations of the European Strategy Group (ESG), consisting of scientific delegates from CERN Member States, Associate Member States, directors of major European laboratories, representatives of various European organizations as well as invitees from outside the European Community. The ESG has the mission to formulate the European Strategy Update for the consideration and approval of the CERN Council.",
+    "pdf_url": "https://arxiv.org/pdf/1910.11775v2",
+    "published": "2019-10-25"
+  },
+  "hep-ex/9605011v1": {
+    "title": "Physics and Technology of the Next Linear Collider: A Report Submitted to Snowmass '96",
+    "authors": [
+      "NLC ZDR Design Group",
+      "NLC Physics Working Group",
+      "S. Kuhlman"
+    ],
+    "summary": "We present the current expectations for the design and physics program of an e+e- linear collider of center of mass energy 500 GeV -- 1 TeV. We review the experiments that would be carried out at this facility and demonstrate its key role in exploring physics beyond the Standard Model over the full range of theoretical possibilities. We then show the feasibility of constructing this machine, by reviewing the current status of linear collider technology and by presenting a precis of our `zeroth-order' design.",
+    "pdf_url": "https://arxiv.org/pdf/hep-ex/9605011v1",
+    "published": "1996-05-30"
+  },
+  "2107.11742v1": {
+    "title": "MHD analysis on the physical designs of CFETR and HFRC",
+    "authors": [
+      "Ping Zhu",
+      "Li Li",
+      "Yu Fang",
+      "Yuling He",
+      "Shuo Wang",
+      "Rui Han",
+      "Yue Liu",
+      "Xiaojing Wang",
+      "Yang Zhang",
+      "Xiaodong Zhang",
+      "Qingquan Yu",
+      "Liqun Hu",
+      "Huihui Wang",
+      "Youwen Sun",
+      "Lai Wei",
+      "Weikang Tang",
+      "Tong Liu",
+      "Zhengxiong Wang",
+      "Xingting Yan",
+      "Wenlong Huang",
+      "Yawei Hou",
+      "Xiaoquan Ji",
+      "Shiyong Zeng",
+      "Zafar Abdullah",
+      "Zhongyong Chen",
+      "Long Zeng",
+      "Haolong Li",
+      "Zhipeng Chen",
+      "Zhijiang Wang",
+      "Bo Rao",
+      "Ming Zhan",
+      "Yonghua Ding",
+      "Yuan Pan",
+      "the CFETR Physics Team",
+      "the HFRC Physics Team"
+    ],
+    "summary": "The China Fusion Engineering Test Reactor (CFETR) and the Huazhong Field Reversed Configuration (HFRC), currently both under intensive physical and engineering designs in China, are the two major projects representative of the low-density steady-state and high-density pulsed pathways to fusion. One of the primary tasks of the physics designs for both CFETR and HFRC is the assessment and analysis of the magnetohydrodynamic (MHD) stability of the proposed design schemes. Comprehensive efforts on the assessment of MHD stability of CFETR and HFRC baseline scenarios have led to preliminary progresses that may further benefit engineering designs.",
+    "pdf_url": "https://arxiv.org/pdf/2107.11742v1",
+    "published": "2021-07-25"
+  },
+  "0710.4947v3": {
+    "title": "Physics at a future Neutrino Factory and super-beam facility",
+    "authors": [
+      "The ISS Physics Working Group"
+    ],
+    "summary": "The conclusions of the Physics Working Group of the international scoping study of a future Neutrino Factory and super-beam facility (the ISS) are presented. The ISS was carried by the international community between NuFact05, (the 7th International Workshop on Neutrino Factories and Superbeams, Laboratori Nazionali di Frascati, Rome, June 21-26, 2005) and NuFact06 (Ivine, California, 24{30 August 2006). The physics case for an extensive experimental programme to understand the properties of the neutrino is presented and the role of high-precision measurements of neutrino oscillations within this programme is discussed in detail. The performance of second generation super-beam experiments, beta-beam facilities, and the Neutrino Factory are evaluated and a quantitative comparison of the discovery potential of the three classes of facility is presented. High-precision studies of the properties of the muon are complementary to the study of neutrino oscillations. The Neutrino Factory has the potential to provide extremely intense muon beams and the physics potential of such beams is discussed in the final section of the report.",
+    "pdf_url": "https://arxiv.org/pdf/0710.4947v3",
+    "published": "2007-10-25"
+  },
+  "2312.14190v1": {
+    "title": "Machine Learning for Anomaly Detection in Particle Physics",
+    "authors": [
+      "Vasilis Belis",
+      "Patrick Odagiu",
+      "Thea Kl\u00e6boe \u00c5rrestad"
+    ],
+    "summary": "The detection of out-of-distribution data points is a common task in particle physics. It is used for monitoring complex particle detectors or for identifying rare and unexpected events that may be indicative of new phenomena or physics beyond the Standard Model. Recent advances in Machine Learning for anomaly detection have encouraged the utilization of such techniques on particle physics problems. This review article provides an overview of the state-of-the-art techniques for anomaly detection in particle physics using machine learning. We discuss the challenges associated with anomaly detection in large and complex data sets, such as those produced by high-energy particle colliders, and highlight some of the successful applications of anomaly detection in particle physics experiments.",
+    "pdf_url": "https://arxiv.org/pdf/2312.14190v1",
+    "published": "2023-12-20"
+  }
+}
